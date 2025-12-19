@@ -38,7 +38,7 @@ including security monitoring concepts, threat detection basics and system analy
 ### 📫 Contact
 
 - GitHub: https://github.com/IVelSadly  
-- LinkedIn: https://linkedin.com/vi-cybersec
+- LinkedIn: https://linkedin.com/in/vi-cybersec
 
 ---
 
