@@ -40,6 +40,7 @@ Variáveis usadas:
 - `WHATSAPP_ACCESS_TOKEN`: token de acesso do app (Meta)
 - `WHATSAPP_PHONE_NUMBER_ID`: ID do número de telefone no WhatsApp Cloud API
 - `WHATSAPP_VERIFY_TOKEN`: token arbitrário para validação do webhook (você define)
+- `WHATSAPP_APP_SECRET`: App Secret do app da Meta (usado para validar `X-Hub-Signature-256`)
 
 ## Como rodar localmente
 
@@ -90,7 +91,13 @@ Recebe eventos do WhatsApp e responde mensagens de texto com:
 Recebido: <mensagem>
 ```
 
-Mensagens sem texto ou eventos que não são mensagens são ignorados.
+Regras do MVP:
+
+- Ignora payloads sem mensagens.
+- Ignora mensagens que não são texto.
+- Protege contra reprocessamento (idempotência por `message_id`).
+- Aplica rate limit simples (por IP e por `wa_id`).
+- Retorna 200 rapidamente e envia a resposta em background.
 
 ## Exemplo de payload recebido (POST /webhook)
 
@@ -130,6 +137,38 @@ Mensagens sem texto ou eventos que não são mensagens são ignorados.
 - **wa_id**: `message["from"]` (ou `contacts[0].wa_id` como fallback)
 - **texto**: `message["text"]["body"]`
 
+## Validação de assinatura (X-Hub-Signature-256)
+
+O webhook valida a assinatura HMAC SHA-256 com `WHATSAPP_APP_SECRET`. O header esperado é:
+
+```
+X-Hub-Signature-256: sha256=<hash>
+```
+
+Para gerar a assinatura localmente (exemplo), use:
+
+```bash
+BODY='{"test":"payload"}'
+APP_SECRET='your_app_secret_here'
+SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$APP_SECRET" | sed 's/^.* //')
+
+echo "X-Hub-Signature-256: sha256=$SIGNATURE"
+```
+
+Exemplo de teste com `curl`:
+
+```bash
+curl -X POST http://localhost:8000/webhook \
+  -H "Content-Type: application/json" \
+  -H "X-Hub-Signature-256: sha256=$SIGNATURE" \
+  -d "$BODY"
+```
+
+## Logs e debug
+
+- O servidor loga apenas informações mínimas e nunca imprime tokens ou payload completo.
+- Cada requisição gera um `request_id` retornado na resposta JSON para facilitar o rastreio.
+
 ## Observações importantes
 
 - Você precisa habilitar o WhatsApp Cloud API e configurar o webhook no Meta Developers.
@@ -139,5 +178,6 @@ Mensagens sem texto ou eventos que não são mensagens são ignorados.
 ## Próximos passos sugeridos (Passo 2+)
 
 - Persistir mensagens recebidas (DB)
-- Implementar filas/worker
-- Autenticação/verificação de assinatura
+- Implementar filas/worker com Redis/SQS
+- Verificação de assinatura reforçada com rotação de segredos
+- Observabilidade (tracing/metrics)

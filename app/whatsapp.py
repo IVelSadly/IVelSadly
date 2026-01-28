@@ -34,12 +34,14 @@ def send_text_message(*, to: str, text: str) -> dict[str, Any]:
         "text": {"body": text},
     }
 
-    with httpx.Client(timeout=10) as client:
-        response = client.post(url, headers=headers, json=payload)
+    timeout = httpx.Timeout(10.0, connect=5.0)
+    transport = httpx.HTTPTransport(retries=2)
 
-    if response.is_error:
-        raise WhatsAppAPIError(
-            f"Graph API error {response.status_code}: {response.text}"
-        )
+    try:
+        with httpx.Client(timeout=timeout, transport=transport) as client:
+            response = client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+    except httpx.HTTPError as error:
+        raise WhatsAppAPIError("Graph API request failed.") from error
 
     return response.json()
